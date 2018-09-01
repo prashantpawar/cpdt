@@ -427,6 +427,188 @@ Section formula_ind'.
     end.
 End formula_ind'.
 
+(* Nested Inductive Types *)
+Inductive nat_tree : Set :=
+ | NNode' : nat -> list nat_tree -> nat_tree.
+
+Check nat_tree_ind.
+
+Section All.
+  Variable T : Set.
+  Variable P : T -> Prop.
+
+  Fixpoint All (ls : list T) : Prop :=
+    match ls with
+      | Nil => True
+      | Cons h t => P h /\ All t
+    end.
+End All.
+
+Print nat_tree_ind.
+
+Section nat_tree_ind'.
+  Variable P : nat_tree -> Prop.
+
+  Hypothesis NNode'_case : forall (n : nat) (ls : list nat_tree),
+    All P ls -> P (NNode' n ls).
+
+  Fixpoint nat_tree_ind' (tr : nat_tree) : P tr :=
+    match tr with
+      | NNode' n ls => NNode'_case n ls
+        ((fix list_nat_tree_ind (ls : list nat_tree) : All P ls :=
+          match ls with
+            | Nil => I
+            | Cons tr' rest => conj (nat_tree_ind' tr') (list_nat_tree_ind rest)
+          end) ls)
+    end.
+
+End nat_tree_ind'.
+
+Section map.
+  Variables T T' : Set.
+  Variables F : T -> T'.
+
+  Fixpoint map (ls : list T) : list T' :=
+    match ls with
+      | Nil => Nil
+      | Cons h t => Cons (F h) (map t)
+   end.
+End map.
+
+Fixpoint sum (ls : list nat) : nat :=
+  match ls with
+    | Nil => O
+    | Cons h t => plus h (sum t)
+  end.
+
+Fixpoint ntsize (tr : nat_tree) : nat :=
+  match tr with
+    | NNode' _ trs => S (sum (map ntsize trs))
+  end.
+
+Fixpoint ntsplice (tr1 tr2 : nat_tree) : nat_tree :=
+  match tr1 with
+    | NNode' n Nil => NNode' n (Cons tr2 Nil)
+    | NNode' n (Cons tr trs) => NNode' n (Cons (ntsplice tr tr2) trs)
+  end.
+
+Lemma plus_S : forall n1 n2 : nat,
+  plus n1 (S n2) = S (plus n1 n2).
+Proof.
+  induction n1; crush.
+Qed.
+
+Hint Rewrite plus_S.
+
+Theorem ntsize_ntsplice : forall tr1 tr2 : nat_tree,
+  ntsize (ntsplice tr1 tr2) = plus (ntsize tr2) (ntsize tr1).
+Proof.
+  induction tr1 using nat_tree_ind'; crush.
+  destruct ls; crush.
+  Restart.
+  Hint Extern 1 (ntsize (match ?LS with Nil => _ | Cons _ _ => _ end) = _) =>
+    destruct LS; crush.
+  induction tr1 using nat_tree_ind'; crush.
+Qed.
+
+
+(* Manual Proofs About Constructors *)
+
+Theorem true_neq_false : true <> false.
+Proof.
+  red.
+  intro H.
+  Definition toProp (b : bool) := if b then True else False.
+  change (toProp false).
+  rewrite <- H. simpl. trivial.
+Qed.
+
+Theorem S_inj' : forall n m : nat,
+  S n = S m -> n = m.
+Proof.
+  intros n m H.
+  change (pred (S n) = pred (S m)).
+  rewrite H. simpl.
+  reflexivity.
+Qed.
+
+(* Exercises *)
+
+(* 1. Define an inductive type truth with three constructors, Yes, No and Maybe. Yes stands for certain truth, No for certain falsehood, and Maybe for an unknown situation. Define "not", "and", and "or" for this replacement boolean algebra. Prove that your implementation of "and" is commutative and distributes over your implementation of "or". *)
+
+Inductive ynm : Set :=
+ | Yes : ynm
+ | No : ynm
+ | Maybe : ynm.
+
+Definition not_ynm (y : ynm) : ynm :=
+  match y with
+    | Yes => No
+    | No => Yes
+    | Maybe => Maybe
+  end.
+
+Definition and_ynm (y1 y2 : ynm) : ynm :=
+  match y1 with
+    | Yes => y2
+    | No => No
+    | Maybe => match y2 with
+                | No => No
+                | _ => Maybe
+               end
+  end.
+
+Definition or_ynm (y1 y2 : ynm) : ynm :=
+  match y1 with
+    | Yes => Yes
+    | No => y2
+    | Maybe => match y2 with
+                | Yes => Yes
+                | _ => Maybe
+               end
+  end.
+
+Theorem and_ynm_comm : forall y1 y2 : ynm,
+  and_ynm y1 y2 = and_ynm y2 y1.
+Proof.
+  induction y1, y2; crush.
+Qed.
+
+Theorem or_distributes_over_and : forall P Q R,
+  or_ynm P (and_ynm Q R) = and_ynm (or_ynm P Q) (or_ynm P R).
+Proof.
+  induction P, Q, R; crush.
+Qed.
+
+
+(* 2. Define an inductive type slist that implements lists with support for constant-time concatenation. This type should be polymorphic in a choice of type for data values in lists. The type slist should have three constructors, for empty lists, singleton lists, and concatenation. Define a function flatten that converts slists to lists. (You will want ot run Require Import List. to bring list definitions into scope.) Finally, prove that flatten distributes over concatenation, where the two sides of your qualified equality will use slist and list version of concatenation, as appropriate. Recall from Chapter 2 that the infix operator ++ is syntatic sugar for the list concatenation function app. *)
+
+Require Import List.
+
+Import ListNotations.
+
+Inductive slist (T : Set) : Set :=
+ | sNil : slist T
+ | sSingl : T -> slist T
+ | sConcat : slist T -> slist T -> slist T.
+
+Fixpoint flatten T (sl : slist T) : list T :=
+  match sl with
+    | sNil => []
+    | sSingl t => [t]
+    | sConcat sl1 sl2 => flatten (sl1) ++ flatten (sl2)
+  end.
+
+
+Theorem flatten_distributes_over_concat : forall T (sl1 sl2 : slist T),
+  flatten (sConcat sl1 sl2) = (flatten sl1) ++ (flatten sl2).
+Proof.
+  induction sl1; crush.
+Qed.
+
+
+
+
 
 
 

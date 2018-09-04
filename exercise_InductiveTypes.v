@@ -223,21 +223,101 @@ Eval simpl in nfold (NPlus (NConst 2) (NConst 2)).
 
 Eval simpl in nfold (NIf (BEq (NPlus (NConst 2) (NConst 4)) (NConst 7)) (NConst 1) (NConst 0)).
 
+Print nat_exp_ind.
+
+Scheme nat_exp_mut := Induction for nat_exp Sort Prop
+with bool_exp_mut := Induction for bool_exp Sort Prop.
+
+Print nat_exp_mut.
 
 Theorem nfold_is_correct : forall V e,
   nexpDenote V (nfold e) = nexpDenote V e.
 Proof.
-  intros V e.
-  induction e; crush.
-  - destruct (nfold e1); destruct (nfold e2); crush.
-  - destruct (nfold e1); destruct (nfold e2); crush.
-  - destruct b; simpl.
-    + destruct b; crush.
-    + unfold replaceConstantInB. rewrite <- IHe1. rewrite <- IHe2.
+  intros V.
+  apply (nat_exp_mut
+          (fun ne : nat_exp => nexpDenote V (nfold ne) = nexpDenote V ne)
+          (fun be : bool_exp => bexpDenote V (bfold be) = bexpDenote V be));
+    try (crush).
+    - destruct (nfold n); destruct (nfold n0); crush.
+    - destruct (nfold n); destruct (nfold n0); crush.
+    - destruct (bfold b); crush.
+      + rewrite <- H0; rewrite <- H1; destruct (bexpDenote V b); crush.
+    - destruct (nfold n); destruct (nfold n0); crush.
+    - destruct (nfold n); destruct (nfold n0); crush.
 Qed.
 
+End exercise4.
 
 
+Module exercise5.
+
+(* 5. Define mutually inductive types of even and odd natural numbers, such that any nat- ural number is isomorphic to a value of one of the two types. (This problem does not ask you to prove that correspondence, though some interpretations of the task may be interesting exercises.) Write a function that computes the sum of two even numbers, such that the function type guarantees that the output is even as well. Prove that this function is commutative. *)
+
+
+Inductive odd : Set :=
+  | One : odd
+  | Sodd : even -> odd
+with even : Set :=
+  | Zero : even
+  | Seven : odd -> even.
+
+(* Scheme odd_mut := Induction for odd Sort Prop
+with even_mut := Induction for even Sort Prop. *)
+
+Scheme even_mut := Induction for even Sort Prop
+with odd_mut := Induction for odd Sort Prop.
+
+Eval simpl in Seven One.
+Eval simpl in Seven (Sodd (Seven One)).
+
+Fixpoint sum_even (e1 e2 : even) : even :=
+  match e1 with
+    | Zero => e2
+    | Seven o1 => match e2 with
+                   | Zero => e1
+                   | Seven o2 => Seven (Sodd (sum_odd o1 o2))
+                  end
+  end
+with sum_odd (o1 o2 : odd) : even :=
+  match o1 with
+    | One => Seven o2
+    | Sodd e1 => match o2 with
+                   | One => Seven o1
+                   | Sodd e2 => Seven (Sodd (sum_even e1 e2))
+                 end
+  end.
+
+Fixpoint efold (e : even) : nat :=
+  match e with
+    | Zero => 0
+    | Seven o => S (ofold o)
+  end
+with ofold (o : odd) : nat :=
+  match o with
+    | One => 1
+    | Sodd e => S (efold e)
+  end.
+
+Eval simpl in efold (Seven One). (* 2 *)
+Eval simpl in efold (Seven (Sodd (Seven One))). (* 4 *)
+
+Eval simpl in efold (sum_even (Seven One) (Seven (Sodd (Seven One)))). (* 2 + 4 = 6 *)
+
+Eval simpl in ofold (Sodd Zero). (* 1 *)
+Eval simpl in ofold (Sodd (Seven One)). (* 3 *)
+Eval simpl in efold (sum_odd (Sodd Zero) (Sodd (Seven One))). (* 1 + 3 = 4 *)
+
+Theorem sum_even_is_correct : forall e1 e2,
+  efold (sum_even e1 e2) = plus (efold e1) (efold e2).
+Proof.
+  apply (even_mut
+    (fun e1 : even => forall e2 : even,
+      efold (sum_even e1 e2) = plus (efold e1) (efold e2))
+    (fun o1 : odd => forall o2 : odd,
+      efold (sum_odd o1 o2) = plus (ofold o1) (ofold o2))); crush.
+  - destruct e2; crush.
+  - destruct o2; crush.
+Qed.
 
 
 

@@ -254,12 +254,11 @@ Module exercise5.
 (* 5. Define mutually inductive types of even and odd natural numbers, such that any nat- ural number is isomorphic to a value of one of the two types. (This problem does not ask you to prove that correspondence, though some interpretations of the task may be interesting exercises.) Write a function that computes the sum of two even numbers, such that the function type guarantees that the output is even as well. Prove that this function is commutative. *)
 
 
-Inductive odd : Set :=
-  | One : odd
-  | Sodd : even -> odd
-with even : Set :=
+Inductive even : Set :=
   | Zero : even
-  | Seven : odd -> even.
+  | Seven : odd -> even
+with odd : Set :=
+  | Sodd : even -> odd.
 
 (* Scheme odd_mut := Induction for odd Sort Prop
 with even_mut := Induction for even Sort Prop. *)
@@ -267,8 +266,8 @@ with even_mut := Induction for even Sort Prop. *)
 Scheme even_mut := Induction for even Sort Prop
 with odd_mut := Induction for odd Sort Prop.
 
-Eval simpl in Seven One.
-Eval simpl in Seven (Sodd (Seven One)).
+Eval simpl in Seven (Sodd Zero).
+Eval simpl in Seven (Sodd (Seven (Sodd Zero))).
 
 Fixpoint sum_even (e1 e2 : even) : even :=
   match e1 with
@@ -280,9 +279,7 @@ Fixpoint sum_even (e1 e2 : even) : even :=
   end
 with sum_odd (o1 o2 : odd) : even :=
   match o1 with
-    | One => Seven o2
     | Sodd e1 => match o2 with
-                   | One => Seven o1
                    | Sodd e2 => Seven (Sodd (sum_even e1 e2))
                  end
   end.
@@ -294,18 +291,17 @@ Fixpoint efold (e : even) : nat :=
   end
 with ofold (o : odd) : nat :=
   match o with
-    | One => 1
     | Sodd e => S (efold e)
   end.
 
-Eval simpl in efold (Seven One). (* 2 *)
-Eval simpl in efold (Seven (Sodd (Seven One))). (* 4 *)
+Eval simpl in efold (Seven (Sodd Zero)). (* 2 *)
+Eval simpl in efold (Seven (Sodd (Seven (Sodd Zero)))). (* 4 *)
 
-Eval simpl in efold (sum_even (Seven One) (Seven (Sodd (Seven One)))). (* 2 + 4 = 6 *)
+Eval simpl in efold (sum_even (Seven (Sodd Zero)) (Seven (Sodd (Seven (Sodd Zero))))). (* 2 + 4 = 6 *)
 
 Eval simpl in ofold (Sodd Zero). (* 1 *)
-Eval simpl in ofold (Sodd (Seven One)). (* 3 *)
-Eval simpl in efold (sum_odd (Sodd Zero) (Sodd (Seven One))). (* 1 + 3 = 4 *)
+Eval simpl in ofold (Sodd (Seven (Sodd Zero))). (* 3 *)
+Eval simpl in efold (sum_odd (Sodd Zero) (Sodd (Seven (Sodd Zero)))). (* 1 + 3 = 4 *)
 
 Theorem sum_even_is_correct : forall e1 e2,
   efold (sum_even e1 e2) = plus (efold e1) (efold e2).
@@ -318,6 +314,146 @@ Proof.
   - destruct e2; crush.
   - destruct o2; crush.
 Qed.
+
+Theorem sum_of_two_even_is_even : forall (e1 e2 : even),
+  sum_even e1 (Seven (Sodd e2)) = Seven (Sodd (sum_even e1 e2)).
+Proof.
+  intros.
+  apply (even_mut
+    (fun e1 : even => forall e2 : even,
+      sum_even e1 (Seven (Sodd e2)) = Seven (Sodd (sum_even e1 e2)))
+    (fun o1 : odd => forall o2 : odd,
+      sum_odd o1 (Sodd (Seven o2)) = Seven (Sodd (sum_odd o1 o2)))); crush.
+  - rewrite <- H. destruct e0; crush. destruct o; induction e; crush.
+  - rewrite <- H. destruct e; destruct o2; crush.
+Qed.
+
+Theorem sum_even_comm : forall e1 e2,
+  sum_even e1 e2 = sum_even e2 e1.
+Proof.
+  apply (even_mut
+    (fun e1 : even => forall e2 : even,
+      sum_even e1 e2 = sum_even e2 e1)
+    (fun o1 : odd => forall o2 : odd,
+      sum_odd o1 o2 = sum_odd o2 o1)); crush.
+  - induction e2; crush.
+  - induction e2; crush.
+  - induction o2; crush.
+Qed.
+
+End exercise5.
+
+Module exercise6.
+
+(* 6. Using a reflexive inductive definition, define a type nat tree of infinitary trees, with natural numbers at their leaves and a countable infinity of new trees branching out of each internal node. Define a function increment that increments the number in every leaf of a nat tree. Define a function leapfrog over a natural i and a tree nt. leapfrog should recurse into the ith child of nt, the i+1st child of that node, the i+2nd child of the next node, and so on, until reaching a leaf, in which case leapfrog should return the number at that leaf. Prove that the result of any call to leapfrog is incremented by one by calling increment on the tree. *)
+
+Inductive nat_tree : Set :=
+  | NLeaf : nat -> nat_tree
+  | NNode : (nat -> nat_tree) -> nat_tree.
+
+Eval simpl in (NLeaf 4).
+
+Fixpoint increment (ntr : nat_tree) : nat_tree :=
+  match ntr with
+    | NLeaf n => NLeaf (n + 1)
+    | NNode f => NNode (fun n => increment (f n))
+  end.
+
+Eval simpl in increment (NLeaf 4).
+
+Fixpoint leapfrog (i : nat) (nt : nat_tree) : nat :=
+  match nt with
+  | NLeaf n => n
+  | NNode f => leapfrog (i + 1) (f i)
+  end.
+
+Theorem leapfrog_incremented : forall tr n,
+  leapfrog n (increment tr) = leapfrog n tr + 1.
+Proof.
+  induction tr; crush.
+Qed.
+
+End exercise6.
+
+Module exercise7.
+
+(* 7. Define a type of trees of trees of trees of (repeat to infinity). That is, define an inductive type trexp, whose members are either base cases containing natural numbers or binary trees of trexps. Base your definition on a parameterized binary tree type btree that you will also define, so that trexp is defined as a nested inductive type. Define a function total that sums all of the naturals at the leaves of a trexp. Define a function increment that increments every leaf of a trexp by one. Prove that, for all tr, total (increment tr) ≥ total tr. On the way to finishing this proof, you will probably want to prove a lemma and add it as a hint using the syntax Hint Resolve name of lemma. *)
+
+Inductive btree (T : Set) : Set :=
+  | Leaf : T -> btree T
+  | Node : btree T -> btree T -> btree T.
+
+Arguments Leaf {T} _.
+Arguments Node {T} _ _.
+
+Inductive trexp : Set :=
+  | BaseN : nat -> trexp
+  | Btree : btree trexp -> trexp.
+
+Fixpoint total (t : trexp) : nat :=
+  match t with
+  | BaseN n => n
+  | Btree bt => (fix btotal (bt : btree trexp) : nat :=
+                  match bt with
+                  | Leaf t => total t
+                  | Node l r => (btotal l) + (btotal r)
+                  end
+                 ) bt
+  end.
+
+Fixpoint increment (t : trexp) : trexp :=
+  match t with
+  | BaseN n => BaseN (n + 1)
+  | Btree bt => Btree ((fix bincrement (bt : btree trexp) : btree trexp :=
+                  match bt with
+                  | Leaf t => Leaf (increment t)
+                  | Node l r => Node (bincrement l) (bincrement r)
+                  end) bt)
+  end.
+ 
+Print trexp_ind.
+Check trexp_ind.
+
+Section trexp_ind'.
+  Variable P : trexp -> Prop.
+
+  Hypothesis BaseN_case : forall (n : nat), P (BaseN n).
+  Hypothesis Btree_case_leaf : forall (t : trexp), 
+    P t -> P (Btree (Leaf t)).
+  Hypothesis Btree_case_node : forall (bl br : btree trexp),
+    P (Btree bl) -> P (Btree br) -> P (Btree (Node bl br)).
+
+  Fixpoint trexp_ind' (t : trexp) : P t :=
+    match t with
+    | BaseN n => BaseN_case n
+    | Btree bt => (fix btrexp_ind' (bt : btree trexp) : P (Btree bt) := 
+                    match bt with
+                    | Leaf tr => Btree_case_leaf (trexp_ind' tr) 
+                    | Node bl br => Btree_case_node (btrexp_ind' bl) (btrexp_ind' br)
+                  end) bt
+    end.
+End trexp_ind'.
+
+Theorem total_tree : forall tr,
+  total (increment tr) >= total tr.
+Proof.
+  induction tr using trexp_ind'; crush.
+Qed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -410,7 +410,7 @@ Fixpoint increment (t : trexp) : trexp :=
                   | Node l r => Node (bincrement l) (bincrement r)
                   end) bt)
   end.
- 
+
 Print trexp_ind.
 Check trexp_ind.
 
@@ -426,11 +426,12 @@ Section trexp_ind'.
   Fixpoint trexp_ind' (t : trexp) : P t :=
     match t with
     | BaseN n => BaseN_case n
-    | Btree bt => (fix btrexp_ind' (bt : btree trexp) : P (Btree bt) := 
-                    match bt with
-                    | Leaf tr => Btree_case_leaf (trexp_ind' tr) 
-                    | Node bl br => Btree_case_node (btrexp_ind' bl) (btrexp_ind' br)
-                  end) bt
+    | Btree bt => 
+        (fix btrexp_ind' (bt : btree trexp) : P (Btree bt) := 
+          match bt with
+          | Leaf tr => Btree_case_leaf (trexp_ind' tr) 
+          | Node bl br => Btree_case_node (btrexp_ind' bl) (btrexp_ind' br)
+          end) bt
     end.
 End trexp_ind'.
 
@@ -440,16 +441,37 @@ Proof.
   induction tr using trexp_ind'; crush.
 Qed.
 
+End exercise7.
 
+Module exercise8.
 
+(* 8. Prove discrimination and injectivity theorems for the nat btree type defined earlier in this chapter. In particular, without using the tactics discriminate, injection, or congruence, prove that no leaf equals any node, and prove that two equal nodes carry the same natural number. *)
 
+Inductive nat_btree : Set :=
+| NLeaf : nat_btree
+| NNode : nat_btree -> nat -> nat_btree -> nat_btree.
 
+Theorem injectivity: forall n1 n2,
+  NNode NLeaf n1 NLeaf = NNode NLeaf n2 NLeaf -> 
+  n1 = n2.
+Proof.
+  intros.
+  induction n1, n2; 
+    try (reflexivity);
+    try (inversion H).
+  - reflexivity.
+Qed.
 
+Theorem discrimination: forall n l r,
+  NLeaf = NNode n l r -> False.
+Proof.
+  intros n l r H.
+  induction l.
+  - inversion H.
+  - inversion H.
+Qed.
 
-
-
-
-
+End exercise8.
 
 
 
